@@ -1,43 +1,48 @@
+name: Model Training CICD
 
-name: Python CI Pipeline
+permissions:
+  id-token: write
+  contents: write
 
-# When should the pipeline execute?
 on:
   push:
-    branches:
-      - main
 
-  pull_request:
-    branches:
-      - main
-
-# What tasks should GitHub perform?
 jobs:
-  build-and-test:
-
-    # Operating system for execution
+  run:
     runs-on: ubuntu-latest
 
-    # Steps to execute
     steps:
+      - uses: actions/checkout@v3
 
-      # Step 1: Download source code
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # Step 2: Install Python
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
+          node-version: '20'
 
-      # Step 3: Install dependencies
-      - name: Install Dependencies
+      - name: Install system dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcairo2-dev \
+            libjpeg-dev \
+            libpango1.0-dev \
+            libgif-dev \
+            librsvg2-dev
 
-      # Step 4: Execute test cases
-      - name: Run Tests
-        run: pytest
+      - uses: iterative/setup-cml@v2
+
+      - name: Train model
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install -r requirements.txt
+          python train_model.py
+
+          echo "RF and LR Model Score" > report.md
+          cat scores.txt >> report.md
+
+          echo "Confusion Matrix & Feature Importance" > report1.md
+          echo '|[](./ConfusionMatrix.png "ConfusionMatrix")' >> report1.md
+          echo '|[](./FeatureImportance.png "FeatureImportance")' >> report1.md
+
+          cat report.md report1.md > combined_file.md
+          cml comment create combined_file.md
